@@ -4,7 +4,6 @@ console.log('peek is running');
 window.onload=function(){
   var rhs = document.getElementById('rhs');
   rhs.innerHTML += peekInsert;
-
   getUrlResults();
 }
 
@@ -24,9 +23,52 @@ function getUrlResults(){
     }
   }
 
+//for only the first 20 request image so that we know it will be downloaded
+//and also add event listners for hovering
   for(var  i = 0; i < 20; i++){
-    console.log(filteredLinks[i]);
+    filteredLinks[i].addEventListener("mouseover", function(event){
+      hoverUrl(event);
+    });
   }
+}
+
+
+//function that gets run on hover of one of the results
+function hoverUrl(event){
+  var currentElement = event.fromElement;
+  //if we didn't get the div object we wanted then we keep going to parent nodes
+  //untill we reach body or we reach the desired node
+  while(currentElement.className != 'r' &&
+  currentElement.localName != 'body'){
+    currentElement = currentElement.parentNode;
+  }
+  if(currentElement.localName == 'body'){
+    console.log('fail');
+    return;
+  }
+  //get the peek peekInsert
+  var peekInsert = document.getElementById('peekOutsideDiv');
+
+  //then get the domain from the hover element for display
+  var domain = currentElement.querySelector('cite')
+  if(domain == null){
+     console.log('domain is nul');
+     return;
+  }
+  domain = domain.innerText;
+  //set the domain label in the peek insert to the current hover domain
+  peekInsert.querySelector('#domainLabel').innerHTML = domain;
+
+  //then get the result title from the hover element for display
+  var title = currentElement.querySelector('h3');
+  if(title == null){
+    console.log('title is nul');
+    return;
+  }
+  title = title.innerHTML;
+  //set the title in the peek insert to the current hover title
+  peekInsert.querySelector('#titleLabel').innerHTML = title;
+  return;
 }
 
 
@@ -64,20 +106,20 @@ var peekInsert = '\
         display: block;\
         width: 400px;\
       ">\
-      <a class="urlText" href="https://google.com" style="\
+      <a class="urlText" href="https://google.com" id="titleLabel" style="\
         font-size: 18px;\
         font-family: Roboto,arial,sans-serif;\
         display: block;\
       ">\
-        Speedtest by Ookla - The Global Broadband Speed Test\
+        Place Holder\
       </a>\
-      <a class="urlLink" href="https://google.com" style="\
+      <a class="urlLink" href="https://google.com" id="domainLabel" style="\
         font-size: 14px;\
         padding-top: 1px;\
         color: #202124;\
         font-family: Roboto,arial,sans-serif;\
       ">\
-        www.speedtest.net\
+        www.placeholder.net\
       </a>\
     </div>\
   </div>\
@@ -88,9 +130,6 @@ var peekInsert = '\
 /*
 TODO:
 
-- get all urls
-- get url of hover
-- put text and url of hover
 - write image request for all urls
 - display image for hover and loading if loading
 */
