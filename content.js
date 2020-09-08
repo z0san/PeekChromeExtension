@@ -12,6 +12,7 @@ window.onload=function(){
   var rhs = document.getElementById('rhs');
   rhs.innerHTML += peekInsert;
   getUrlResults();
+  updateCurImg();
 }
 
 
@@ -35,7 +36,6 @@ function getUrlResults(){
     }
   }
 
-
   //for only the first 20 request image so that we know it will be downloaded
   for(var  i = 0; i < 10; i++){
     //add marker so we know what number result it is
@@ -56,6 +56,25 @@ function getUrlResults(){
   requestImgs(0);
 }
 
+
+//function to loop and see if the current peek image needs to be fetched from server
+function updateCurImg(){
+  console.log('attempting to update current image');
+
+
+  //get the peek peekInsert
+  var peekInsert = document.getElementById('peekOutsideDiv');
+  if(peekInsert.currentId) var result = results[peekInsert.currentId];
+
+  if(peekInsert.currentId && !result.hasImg){
+    console.log('requesting image for id: ' + peekInsert.currentId);
+    //if the image has not been downloaded yet then send another request to the server
+    requestSingleImg(peekInsert.currentId, function(){});
+  }
+
+  setTimeout(function(){updateCurImg()}, 1000);
+}
+
 //function to send ajax request for images in filteredLinks
 function requestImgs(index){
   //if we have downloaded all the images just return
@@ -68,9 +87,8 @@ function requestImgs(index){
 
   //request the single image
 
-  requestSingleImg(index, function(){
-    requestImgs(index + 1);
-  })
+  requestSingleImg(index, function(){});
+  requestImgs(index + 1);
 }
 
 //function to retrieve single images
@@ -78,6 +96,13 @@ function requestImgs(index){
 function requestSingleImg(index, callback){
   //the current result we are downloading an image for
   var result = results[index];
+
+  //in the case of invalid index throw error
+  if(result == undefined){
+    console.log(index + ' is not a valid index!');
+    callback();
+    return;
+  }
 
   //in case of errors
   if(result.url == '') {
@@ -92,12 +117,29 @@ function requestSingleImg(index, callback){
 
     if(this.status == 200 && this.responseText != ''){
       //console.log('successfully found img, loading it in now');
-      var data = JSON.parse(this.responseText);
+      var data;
+      //catch error reading json often syntax error, unexpected end of JSON input
+      try {
+        data = JSON.parse(this.responseText);
+      }
+      catch (e){
+        callback();
+        return;
+      }
+
       //console.log('data: ' + JSON.stringify(data));
 
       //now we will be updating the result with the image data
       result.imgSrc = 'data:image/jpeg;base64,' + (data.img.base64);
       result.hasImg = true;
+
+      //if the curser is still hovering over this result then display this image in the peek window
+      //get the peek peekInsert
+      var peekInsert = document.getElementById('peekOutsideDiv');
+
+      if(peekInsert.currentId == result.id){
+        peekInsert.querySelector('#screenShot').src = result.imgSrc;
+      }
 
       //run the callback
       callback();
@@ -117,7 +159,7 @@ function requestSingleImg(index, callback){
     }
   };
   //set the method and url
-  xhttp.open("GET", apiUrl + result.url, false);
+  xhttp.open("GET", apiUrl + result.url, true);
   //send http request
   xhttp.send();
 }
@@ -158,7 +200,6 @@ function hoverUrl(event){
     currentElement = currentElement.parentNode;
   }
   if(currentElement.localName == 'body'){
-    console.log('fail');
     return;
   }
   //get the index value of the current hover result
@@ -168,6 +209,9 @@ function hoverUrl(event){
   console.log('currently hovering over result ' + result.id);
   //get the peek peekInsert
   var peekInsert = document.getElementById('peekOutsideDiv');
+
+  //set peekInsert current id value
+  peekInsert.currentId = result.id;
 
   //set the domain label in the peek insert to the current hover domain
   peekInsert.querySelector('#domainLabel').innerHTML = result.domain;
@@ -182,24 +226,6 @@ function hoverUrl(event){
     //display loadingImg
     peekInsert.querySelector('#screenShot').src =
     'http://localhost:3000/resources/loading.gif';
-
-    //else request the image again and display loading image untill it has been downloaded
-    function recurseSingleImg(result){
-      requestSingleImg(result.id, function(){
-        if(!result.hasImg){
-          //if still not downloaded the image yet then wait 2 sec and then try again
-          setTimeout(function(){recurseSingleImg(result)}, 2000);
-        }else{
-          //only if the mouse is currently on this result do we set the peek window to the img
-          if(peekInsert.querySelector('#titleLabel').innerHTML == result.title){
-            peekInsert.querySelector('#screenShot').src = result.imgSrc;
-          }
-        }
-      });
-    }
-
-    //call recurseve funciton
-    recurseSingleImg(result);
 
   }
 
