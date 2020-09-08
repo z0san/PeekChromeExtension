@@ -1,15 +1,26 @@
 
 console.log('peek is running');
 
+var loadingImg = 'http://localhost:3000/resources/loading.gif';
+var apiUrl = 'http://localhost:3000/imagefetcher?url=';
+
+
+//will store all results
+var results = [];
+
 window.onload=function(){
   var rhs = document.getElementById('rhs');
   rhs.innerHTML += peekInsert;
   getUrlResults();
 }
 
+
+
 function getUrlResults(){
   //gets all the search result links
   var links = document.getElementById('rso').querySelectorAll('a');
+
+  //will be populated by all the results html info
   var filteredLinks = [];
 
   for(var i = 0; i < links.length; i++){
@@ -18,19 +29,123 @@ function getUrlResults(){
     if(!links[i].href.includes('https://www.google.com/search') &&
     links[i].innerHTML.includes(links[i].href.substring
       (8, links[i].href.indexOf('.'))
-    )){
+    ) && links[i].href != null && links[i].href != '' &&
+    findDomain(links[i]) != null && findTitle(links[i]) != null){
       filteredLinks.push(links[i]);
     }
   }
 
-//for only the first 20 request image so that we know it will be downloaded
-//and also add event listners for hovering
-  for(var  i = 0; i < 20; i++){
+
+  //for only the first 20 request image so that we know it will be downloaded
+  for(var  i = 0; i < 10; i++){
+    //add marker so we know what number result it is
+    filteredLinks[i].className += i;
+    //add event listners for hovering
     filteredLinks[i].addEventListener("mouseover", function(event){
       hoverUrl(event);
     });
+    //create results objects so easier to find later
+    results.push({
+      id: i,
+      data: filteredLinks[i],
+      url: filteredLinks[i].href,
+      domain: findDomain(filteredLinks[i]),
+      title: findTitle(filteredLinks[i])
+    });
   }
+  requestImgs(0);
 }
+
+//function to send ajax request for images in filteredLinks
+function requestImgs(index){
+  //if we have downloaded all the images just return
+  if(index >= results.length) {
+    console.log('all images have been requested');
+    console.log(results);
+    return;
+  }
+  console.log('index: ' + index);
+
+  //request the single image
+
+  requestSingleImg(index, function(){
+    requestImgs(index + 1);
+  })
+}
+
+//function to retrieve single images
+//assumes image has not alread been downloaded
+function requestSingleImg(index, callback){
+  //the current result we are downloading an image for
+  var result = results[index];
+
+  //in case of errors
+  if(result.url == '') {
+    console.log('error collecting results');
+    callback();
+  }
+  console.log('requesting ' + result.url);
+  var xhttp = new XMLHttpRequest();
+  //on response
+  xhttp.onreadystatechange = function() {
+    //console.log('status: ' + this.status);
+
+    if(this.status == 200 && this.responseText != ''){
+      //console.log('successfully found img, loading it in now');
+      var data = JSON.parse(this.responseText);
+      //console.log('data: ' + JSON.stringify(data));
+
+      //now we will be updating the result with the image data
+      result.imgSrc = 'data:image/jpeg;base64,' + (data.img.base64);
+      result.hasImg = true;
+
+      //run the callback
+      callback();
+    } else if(this.status ==  204){
+      //console.log('image not donwloaded yet');
+      //setTimeout(function(){requestImg(index);}, 500);
+
+      result.hasImg = false;
+      //run the callback
+      callback();
+    } else if(this.status != 0){
+      //all other situations except for response of 0
+      result.hasImg = false;
+      //run the callback
+      callback();
+
+    }
+  };
+  //set the method and url
+  xhttp.open("GET", apiUrl + result.url, false);
+  //send http request
+  xhttp.send();
+}
+
+function findDomain(currentElement){
+  //then get the domain from the hover element for display
+  var domain = currentElement.querySelector('cite')
+  if(domain == null){
+     console.log('domain is nul');
+     return null;
+  }
+  domain = domain.innerText;
+  return domain;
+}
+
+//gets the title of the search result
+function findTitle(currentElement){
+  //then get the result title from the hover element for display
+  var title = currentElement.querySelector('h3');
+  if(title == null){
+    console.log('title is nul');
+    return null;
+  }
+  title = title.innerHTML;
+
+  return title;
+}
+
 
 
 //function that gets run on hover of one of the results
@@ -46,28 +161,49 @@ function hoverUrl(event){
     console.log('fail');
     return;
   }
+  //get the index value of the current hover result
+  var result = results[Number(currentElement.querySelector('a').className)]
+
+
+  console.log('currently hovering over result ' + result.id);
   //get the peek peekInsert
   var peekInsert = document.getElementById('peekOutsideDiv');
 
-  //then get the domain from the hover element for display
-  var domain = currentElement.querySelector('cite')
-  if(domain == null){
-     console.log('domain is nul');
-     return;
-  }
-  domain = domain.innerText;
   //set the domain label in the peek insert to the current hover domain
-  peekInsert.querySelector('#domainLabel').innerHTML = domain;
-
-  //then get the result title from the hover element for display
-  var title = currentElement.querySelector('h3');
-  if(title == null){
-    console.log('title is nul');
-    return;
-  }
-  title = title.innerHTML;
+  peekInsert.querySelector('#domainLabel').innerHTML = result.domain;
   //set the title in the peek insert to the current hover title
-  peekInsert.querySelector('#titleLabel').innerHTML = title;
+  peekInsert.querySelector('#titleLabel').innerHTML = result.title;
+
+  //set the picture in the peek insert to the current hover screenshot
+  //if we have already recieved an image for this site
+  if(result.hasImg){
+    peekInsert.querySelector('#screenShot').src = result.imgSrc;
+  }else{
+    //display loadingImg
+    peekInsert.querySelector('#screenShot').src =
+    'http://localhost:3000/resources/loading.gif';
+
+    //else request the image again and display loading image untill it has been downloaded
+    function recurseSingleImg(result){
+      requestSingleImg(result.id, function(){
+        if(!result.hasImg){
+          //if still not downloaded the image yet then wait 2 sec and then try again
+          setTimeout(function(){recurseSingleImg(result)}, 2000);
+        }else{
+          //only if the mouse is currently on this result do we set the peek window to the img
+          if(peekInsert.querySelector('#titleLabel').innerHTML == result.title){
+            peekInsert.querySelector('#screenShot').src = result.imgSrc;
+          }
+        }
+      });
+    }
+
+    //call recurseve funciton
+    recurseSingleImg(result);
+
+  }
+
+
   return;
 }
 
@@ -102,9 +238,13 @@ var peekInsert = '\
     <div class="mainBox" style="\
       padding: 0 19px 0 19px;\
     ">\
-      <img src="http://localhost:3000/resources/noImage.png" style="\
+      <img id="screenShot" src="http://localhost:3000/resources/noImage.png" style="\
         display: block;\
         width: 400px;\
+        height: 225px;\
+        margin: 10px 0 10px 0;\
+        border: 1px solid #dfe1e5;\
+        border-radius: 8px;\
       ">\
       <a class="urlText" href="https://google.com" id="titleLabel" style="\
         font-size: 18px;\
